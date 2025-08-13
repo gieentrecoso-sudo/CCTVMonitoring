@@ -64,53 +64,6 @@
       <div class="muted">Deploy on GitHub Pages. Photos always overwrite <code class="k">photo1.png</code> & <code class="k">photo2.png</code>.</div>
     </header>
 
-    <section class="grid">
-      <div class="card">
-        <div class="row" style="justify-content: space-between;">
-          <div>
-            <strong>Camera</strong>
-            <div class="muted">Allow browser camera permissions. Use rear camera on mobile by choosing <em>environment</em>.</div>
-          </div>
-          <div class="muted">Auth: <span id="authState">…</span></div>
-        </div>
-        <video id="video" autoplay playsinline muted></video>
-        <div class="controls">
-          <button id="cap1">Capture Photo 1</button>
-          <button id="cap2">Capture Photo 2</button>
-          <button id="upload" class="good">Upload Both (Overwrite)</button>
-          <button id="refresh" class="secondary">Show Latest Online</button>
-        </div>
-        <div class="note" style="margin-top:8px">Tip: You only need to press <em>Upload Both</em>; it always replaces the existing files online. Next day, repeat and they will be replaced.</div>
-      </div>
-
-      <div class="card">
-        <strong>Preview & Remote Images</strong>
-        <div class="two-col" style="margin-top:10px;">
-          <div>
-            <div class="muted">Local Preview 1</div>
-            <canvas id="c1"></canvas>
-          </div>
-          <div>
-            <div class="muted">Local Preview 2</div>
-            <canvas id="c2"></canvas>
-          </div>
-        </div>
-        <div class="two-col" style="margin-top:10px;">
-          <div>
-            <div class="muted">Latest Online 1</div>
-            <img id="img1" class="preview" alt="photo1 online" />
-          </div>
-          <div>
-            <div class="muted">Latest Online 2</div>
-            <img id="img2" class="preview" alt="photo2 online" />
-          </div>
-        </div>
-        <div class="row" style="margin-top:10px;">
-          <button id="clearPreviews" class="warn">Clear Local Previews</button>
-          <span id="status" class="status muted">Ready.</span>
-        </div>
-      </div>
-    </section>
 
  
   
