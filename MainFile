@@ -1,33 +1,241 @@
-<video id="video" autoplay></video>
-<button id="snap">Capture</button>
-<canvas id="canvas"></canvas>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import { getStorage, ref, uploadString } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily 2-Photo Capture (GitHub Pages + Firebase)</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #121a33;
+      --muted: #94a3b8;
+      --acc: #60a5fa;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 700px at 70% -10%, #1e293b 0%, var(--bg) 60%);
+      color: #e2e8f0; min-height: 100dvh; display: grid; place-items: center;
+    }
+    .wrap { width: min(1100px, 95vw); padding: 28px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+    h1 { font-size: clamp(18px, 3.6vw, 28px); margin: 0; letter-spacing: .3px; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid rgba(148,163,184,.2);
+      border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(2,6,23,.35);
+    }
+    .grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
+    @media (min-width: 980px) { .grid { grid-template-columns: 1.2fr .8fr; } }
 
-  const firebaseConfig = {
-    apiKey: "YOUR_KEY",
-    authDomain: "YOUR_APP.firebaseapp.com",
-    projectId: "YOUR_APP",
-    storageBucket: "YOUR_APP.appspot.com",
-  };
-  const app = initializeApp(firebaseConfig);
-  const storage = getStorage(app);
+    video, canvas, img.preview {
+      width: 100%; background: #0f172a; border-radius: 12px; border: 1px dashed rgba(148,163,184,.35);
+      aspect-ratio: 4/3; object-fit: cover;
+    }
+    .controls { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
+    button {
+      appearance: none; border: 1px solid rgba(148,163,184,.35); color: #e2e8f0;
+      background: linear-gradient(180deg, rgba(96,165,250,.18), rgba(96,165,250,.08));
+      padding: 10px 14px; border-radius: 12px; font-weight: 600; cursor: pointer;
+      transition: transform .05s ease, filter .2s ease, background .3s ease; backdrop-filter: blur(4px);
+    }
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: translateY(1px); }
+    button.secondary { background: transparent; }
+    button.good { background: linear-gradient(180deg, rgba(34,197,94,.25), rgba(34,197,94,.08)); border-color: rgba(34,197,94,.45); }
+    button.warn { background: transparent; border-color: rgba(245,158,11,.55); color: #fde68a; }
 
-  const video = document.getElementById('video');
-  navigator.mediaDevices.getUserMedia({ video: true })
-    .then(stream => video.srcObject = stream);
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .status { margin-left: 10px; font-size: 13px; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    code.k { background: rgba(2,6,23,.4); border: 1px solid rgba(148,163,184,.3); padding: 2px 6px; border-radius: 6px; }
+    a { color: #93c5fd; }
+    .note { font-size: 12px; color: #cbd5e1; opacity: .8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Daily 2-Photo Capture → Upload & Replace (Firebase Storage)</h1>
+      <div class="muted">Deploy on GitHub Pages. Photos always overwrite <code class="k">photo1.png</code> & <code class="k">photo2.png</code>.</div>
+    </header>
 
-  document.getElementById('snap').addEventListener('click', () => {
-    const canvas = document.getElementById('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    const imageData = canvas.toDataURL('image/png');
+    <section class="grid">
+      <div class="card">
+        <div class="row" style="justify-content: space-between;">
+          <div>
+            <strong>Camera</strong>
+            <div class="muted">Allow browser camera permissions. Use rear camera on mobile by choosing <em>environment</em>.</div>
+          </div>
+          <div class="muted">Auth: <span id="authState">…</span></div>
+        </div>
+        <video id="video" autoplay playsinline muted></video>
+        <div class="controls">
+          <button id="cap1">Capture Photo 1</button>
+          <button id="cap2">Capture Photo 2</button>
+          <button id="upload" class="good">Upload Both (Overwrite)</button>
+          <button id="refresh" class="secondary">Show Latest Online</button>
+        </div>
+        <div class="note" style="margin-top:8px">Tip: You only need to press <em>Upload Both</em>; it always replaces the existing files online. Next day, repeat and they will be replaced.</div>
+      </div>
 
-    const storageRef = ref(storage, 'photo1.png'); // overwrites each time
-    uploadString(storageRef, imageData, 'data_url').then(() => {
-      alert('Photo uploaded!');
+      <div class="card">
+        <strong>Preview & Remote Images</strong>
+        <div class="two-col" style="margin-top:10px;">
+          <div>
+            <div class="muted">Local Preview 1</div>
+            <canvas id="c1"></canvas>
+          </div>
+          <div>
+            <div class="muted">Local Preview 2</div>
+            <canvas id="c2"></canvas>
+          </div>
+        </div>
+        <div class="two-col" style="margin-top:10px;">
+          <div>
+            <div class="muted">Latest Online 1</div>
+            <img id="img1" class="preview" alt="photo1 online" />
+          </div>
+          <div>
+            <div class="muted">Latest Online 2</div>
+            <img id="img2" class="preview" alt="photo2 online" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button id="clearPreviews" class="warn">Clear Local Previews</button>
+          <span id="status" class="status muted">Ready.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <strong>Setup (one-time)</strong>
+      <ol>
+        <li>Create a <a href="https://console.firebase.google.com/" target="_blank" rel="noopener">Firebase</a> project → add a Web app.</li>
+        <li>Enable <em>Authentication → Sign-in method → Anonymous</em>.</li>
+        <li>Enable <em>Storage</em>. In <em>Rules</em>, start with:<br>
+<pre style="white-space: pre-wrap; background:#0b1224; padding:10px; border-radius:8px; border:1px solid rgba(148,163,184,.25);"><code>rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null; // requires signed-in (anonymous allowed)
+    }
+  }
+}</code></pre>
+        </li>
+        <li>Paste your Firebase config into this file (see <code>firebaseConfig</code> below), commit, and push to GitHub Pages.</li>
+      </ol>
+      <div class="note">You can later restrict paths to only <code>photo1.png</code> and <code>photo2.png</code> for tighter security.</div>
+    </section>
+  </div>
+
+  <!-- Firebase v10 Modular SDKs -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+    import { getStorage, ref, uploadString, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js';
+
+    // 1) INSERT YOUR FIREBASE CONFIG HERE
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      appId: "YOUR_APP_ID"
+    };
+
+    // 2) Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+
+    // UI elements
+    const el = (id)=>document.getElementById(id);
+    const video = el('video');
+    const c1 = el('c1');
+    const c2 = el('c2');
+    const img1 = el('img1');
+    const img2 = el('img2');
+    const statusEl = el('status');
+    const authStateEl = el('authState');
+
+    // State
+    let data1 = null; // data URL
+    let data2 = null; // data URL
+
+    function setStatus(t) { statusEl.textContent = t; }
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        video.srcObject = stream;
+      } catch (err) {
+        setStatus('Camera error: ' + err.message);
+      }
+    }
+
+    function drawToCanvas(canvas, fromVideo) {
+      const w = fromVideo.videoWidth || 640;
+      const h = fromVideo.videoHeight || 480;
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(fromVideo, 0, 0, w, h);
+      return canvas.toDataURL('image/png');
+    }
+
+    async function uploadBoth() {
+      if (!data1 && !data2) { setStatus('Capture at least one photo first.'); return; }
+      setStatus('Uploading…');
+      try {
+        if (data1) {
+          const r1 = ref(storage, 'photo1.png');
+          await uploadString(r1, data1, 'data_url');
+        }
+        if (data2) {
+          const r2 = ref(storage, 'photo2.png');
+          await uploadString(r2, data2, 'data_url');
+        }
+        setStatus('Uploaded. Fetching latest URLs…');
+        await refreshOnline();
+        setStatus('Done ✓ (files overwritten)');
+      } catch (e) {
+        console.error(e);
+        setStatus('Upload failed: ' + e.message);
+      }
+    }
+
+    async function refreshOnline() {
+      const bust = `?t=${Date.now()}`; // cache-buster so you always see newest
+      try {
+        const u1 = await getDownloadURL(ref(storage, 'photo1.png')).catch(()=>null);
+        const u2 = await getDownloadURL(ref(storage, 'photo2.png')).catch(()=>null);
+        if (u1) img1.src = u1 + bust; else img1.removeAttribute('src');
+        if (u2) img2.src = u2 + bust; else img2.removeAttribute('src');
+      } catch (e) {
+        console.warn('Refresh issue', e);
+      }
+    }
+
+    // Auth → Anonymous (required by Storage rule)
+    onAuthStateChanged(auth, (u) => {
+      if (u) authStateEl.textContent = 'Signed in (anonymous)'; else authStateEl.textContent = 'Signing in…';
     });
-  });
-</script>
+    signInAnonymously(auth).catch(err => { authStateEl.textContent = 'Auth error: ' + err.message; });
+
+    // Wire up UI
+    el('cap1').addEventListener('click', () => { data1 = drawToCanvas(c1, video); setStatus('Captured Photo 1'); });
+    el('cap2').addEventListener('click', () => { data2 = drawToCanvas(c2, video); setStatus('Captured Photo 2'); });
+    el('upload').addEventListener('click', uploadBoth);
+    el('refresh').addEventListener('click', refreshOnline);
+    el('clearPreviews').addEventListener('click', () => { c1.getContext('2d').clearRect(0,0,c1.width,c1.height); c2.getContext('2d').clearRect(0,0,c2.width,c2.height); data1 = data2 = null; setStatus('Local previews cleared'); });
+
+    // Start
+    startCamera().then(refreshOnline);
+  </script>
+</body>
+</html>
